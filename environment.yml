@@ -1,0 +1,9 @@
+name: 
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  # - requests              # For making HTTP requests
+  # - numpy                 # For numerical operations
+  # - pandas                # For data manipulation and analysis
+  # - pip
