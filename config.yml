@@ -6,8 +6,7 @@
 # You can use ~ for your home directory.
 # ============================================================
 
-secrets_path: "~/<YOUR SECRETS FILE PATH>.json"   # e.g., ~/.secrets.json
-
+secrets_path: "<path>"   # 
 # ------------------------------------------------------------
 # Notes:
 # - This file tells passbridge.py where to create and read

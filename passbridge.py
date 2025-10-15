@@ -1,29 +1,35 @@
 #!/usr/bin/env python3
 """
-secretsbridge (main.py)
+passbridge.py
 Temporary secrets (JSON/YAML/CSV) -> pass bridge.
 
 Commands:
   create   [-card | -logins] [--force]
-    - Default: create JSON file at configured secrets_path and open in Sublime.
-    - -card:   copy ./templates/cards.json  -> secrets_path
-    - -logins: copy ./templates/logins.yml  -> secrets_path
+    - Default: create JSON file at SECRETS_PATH and open in Sublime (subl).
+    - -card:   copy ./templates/cards.json  -> SECRETS_PATH
+    - -logins: copy ./templates/logins.json -> SECRETS_PATH
 
   topass    [--force]
-    - Detects format of secrets_path (JSON / YAML / CSV) and imports to pass:
+    - Detects format of SECRETS_PATH (JSON / YAML / CSV) and imports to pass:
         * JSON logins: {entry, username, password, url, notes}
         * JSON cards:  {entry, card_no, name, exp, cvc, issuer, notes}
         * YAML (list of maps) with same keys as above
         * CSV header: entry,password,username,url,notes
 
   remove
-    - Securely shred the secrets file at secrets_path
+    - Securely shred the secrets file at SECRETS_PATH
 
-Config:
-  ./config.yml (placeholders only) with:
-      secrets_path: "~/<YOUR SECRETS FILE PATH>.json"
-Templates directory:
-  ./templates/ (cards.json, logins.yml)
+Config resolution priority (highest → lowest):
+  1) .env variables in the project root (same dir as this script)
+        SECRETS_PATH=~/.secrets.json
+        TEMPLATES_PATH=~/Workspace/secretsbridge/templates
+        PASSBRIDGE_CONFIG=~/custom/passbridge.yml   (optional)
+  2) config.yml (either PASSBRIDGE_CONFIG if set, or ./config.yml, or ~/.config/passbridge/config.yml)
+        secrets_path: "~/.secrets.json"
+        templates_path: "~/Workspace/secretsbridge/templates"
+  3) Defaults:
+        SECRETS_PATH: ~/.secrets.json
+        TEMPLATES_PATH: ./templates
 """
 
 import argparse
@@ -43,34 +49,47 @@ try:
 except Exception:
     yaml = None
 
-# ---------- Paths ----------
-SCRIPT_DIR = Path(__file__).resolve().parent
-CONFIG_PATHS = [SCRIPT_DIR / "config.yml", Path("~/.config/passbridge/config.yml").expanduser()]
-TEMPLATE_DIR = SCRIPT_DIR / "templates"  # ./templates (cards.json, logins.yml)
+# ---------- .env loader ----------
+def load_dotenv(dotenv_path: Path):
+    if not dotenv_path.exists():
+        return
+    try:
+        for line in dotenv_path.read_text(encoding="utf-8").splitlines():
+            s = line.strip()
+            if not s or s.startswith("#") or "=" not in s:
+                continue
+            k, v = s.split("=", 1)
+            os.environ[k.strip()] = v.strip()
+    except Exception as e:
+        print(f"Warning: failed to parse .env: {e}", file=sys.stderr)
 
-# ---------- Config ----------
+# ---------- Paths & config discovery ----------
+SCRIPT_DIR = Path(__file__).resolve().parent
+load_dotenv(SCRIPT_DIR / ".env")  # load .env first (may define PASSBRIDGE_CONFIG)
+
 def _minimal_yaml_like_parse(text: str) -> dict:
-    """
-    Minimal one-level key: value parser for trivial config.yml if PyYAML is unavailable.
-    Ignores comments and blank lines. Quoted values are unquoted.
-    """
     cfg = {}
     for line in text.splitlines():
         s = line.strip()
-        if not s or s.startswith("#"):
-            continue
-        if ":" not in s:
+        if not s or s.startswith("#") or ":" not in s:
             continue
         k, v = s.split(":", 1)
         k = k.strip()
-        v = v.strip()
-        if v and ((v[0] == v[-1]) and v[0] in ("'", '"')):
-            v = v[1:-1]
+        v = v.strip().strip('"').strip("'")
         cfg[k] = v
     return cfg
 
 def load_config() -> dict:
-    for p in CONFIG_PATHS:
+    # Allow env to point explicitly at a config file
+    cfg_env_path = os.getenv("PASSBRIDGE_CONFIG")
+    candidates = []
+    if cfg_env_path:
+        candidates.append(Path(cfg_env_path).expanduser())
+    candidates += [
+        SCRIPT_DIR / "config.yml",
+        Path("~/.config/passbridge/config.yml").expanduser(),
+    ]
+    for p in candidates:
         if p.exists():
             try:
                 text = p.read_text(encoding="utf-8")
@@ -83,10 +102,17 @@ def load_config() -> dict:
     return {}
 
 CONFIG = load_config()
-# Default to ~/.secrets.json if not set in config.yml
-SECRETS_PATH = Path((CONFIG.get("secrets_path") or "~/.secrets.json")).expanduser()
 
-# ---------- Helpers ----------
+# Priority resolution: .env → config.yml → defaults
+SECRETS_PATH = Path(
+    os.getenv("SECRETS_PATH") or CONFIG.get("secrets_path") or "~/.secrets.json"
+).expanduser()
+
+TEMPLATE_DIR = Path(
+    os.getenv("TEMPLATES_PATH") or CONFIG.get("templates_path") or (SCRIPT_DIR / "templates")
+).expanduser()
+
+# ---------- helpers ----------
 def require_cmd(cmd: str):
     if shutil.which(cmd) is None:
         print(f"Error: '{cmd}' command not found in PATH.", file=sys.stderr)
@@ -135,7 +161,6 @@ def detect_format(path: Path) -> str:
         return "yaml"
     if ext == ".csv":
         return "csv"
-    # sniff content
     try:
         with path.open("r", encoding="utf-8") as f:
             head = f.read(4096).lstrip()
@@ -153,32 +178,28 @@ def cmd_create(args):
         print(f"{SECRETS_PATH} already exists. Use --force to overwrite.")
         sys.exit(1)
 
+    SECRETS_PATH.parent.mkdir(parents=True, exist_ok=True)
+
     # If a template flag is used, copy from templates dir.
     if args.card or args.logins:
-        src = TEMPLATE_DIR / ("cards.json" if args.card else "logins.yml")
+        src = TEMPLATE_DIR / ("cards.json" if args.card else "logins.json")
         if not src.exists():
             # Auto-create minimal template if missing
             src.parent.mkdir(parents=True, exist_ok=True)
             if args.card:
-                sample = [
+                sample_cards = [
                     {"entry":"cards/example","card_no":"4111111111111111",
-                     "name":"Your Name","exp":"01/30","cvc":"123","issuer":"Issuer","notes":"example"}
+                     "name":"Your Name","exp":"01/30","cvc":"123","issuer":"Your Bank","notes":"example"}
                 ]
-                src.write_text(json.dumps(sample, indent=2), encoding="utf-8")
+                src.write_text(json.dumps(sample_cards, indent=2), encoding="utf-8")
             else:
-                # YAML template
-                text = (
-                    "- entry: \"sites/example\"\n"
-                    "  username: \"you\"\n"
-                    "  password: \"change-me\"\n"
-                    "  url: \"https://example.com\"\n"
-                    "  notes: \"example\"\n"
-                )
-                src.write_text(text, encoding="utf-8")
+                sample_logins = [
+                    {"entry":"sites/example","username":"you","password":"change-me",
+                     "url":"https://example.com","notes":"example"}
+                ]
+                src.write_text(json.dumps(sample_logins, indent=2), encoding="utf-8")
             print(f"Template not found; created minimal example at {src}")
 
-        # Ensure parent directory for SECRETS_PATH exists
-        SECRETS_PATH.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, SECRETS_PATH)
         ensure_perm_user_only(SECRETS_PATH)
         print(f"Copied {src} -> {SECRETS_PATH}")
@@ -195,7 +216,6 @@ def cmd_create(args):
             "notes": "example"
         }
     ]
-    SECRETS_PATH.parent.mkdir(parents=True, exist_ok=True)
     SECRETS_PATH.write_text(json.dumps(default_json, indent=2), encoding="utf-8")
     ensure_perm_user_only(SECRETS_PATH)
     print(f"Created default JSON secrets file at {SECRETS_PATH}")
@@ -330,8 +350,8 @@ def main():
 
     p_create = sub.add_parser("create", help="Create secrets file or copy a template.")
     p_create.add_argument("--force", action="store_true")
-    p_create.add_argument("-card", action="store_true", help="Copy ./templates/cards.json -> secrets_path")
-    p_create.add_argument("-logins", action="store_true", help="Copy ./templates/logins.yml -> secrets_path")
+    p_create.add_argument("-card", action="store_true", help="Copy ./templates/cards.json   -> SECRETS_PATH")
+    p_create.add_argument("-logins", action="store_true", help="Copy ./templates/logins.json -> SECRETS_PATH")
     p_create.set_defaults(func=cmd_create)
 
     p_topass = sub.add_parser("topass", help="Import secrets into pass (JSON/YAML/CSV).")
