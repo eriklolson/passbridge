@@ -1,0 +1,18 @@
+# ============================================================
+# passbridge Configuration
+# ------------------------------------------------------------
+# Defines where your temporary secrets file will be created.
+# Replace the placeholder path below with your desired location.
+# You can use ~ for your home directory.
+# ============================================================
+
+secrets_path: "~/<YOUR SECRETS FILE PATH>.json"   # e.g., ~/.secrets.json
+
+# ------------------------------------------------------------
+# Notes:
+# - This file tells passbridge.py where to create and read
+#   the temporary secrets JSON file used for transfers to `pass`.
+# - Templates (cards.json and logins.yml) are expected in:
+#     ~/Workspace/secretsbridge/templates/
+# - You can change the filename or directory freely.
+# ------------------------------------------------------------

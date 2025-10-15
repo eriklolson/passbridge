@@ -1,0 +1,9 @@
+[
+  {
+    "entry": "sites/example",
+    "username": "you",
+    "password": "change-me",
+    "url": "https://example.com",
+    "notes": "example"
+  }
+]
