@@ -1,0 +1,118 @@
+# ========================================
+# Byte-compiled / optimized / DLL files
+# ========================================
+__pycache__/
+*.py[cod]
+*.class
+
+# ========================================
+# C extensions
+# ========================================
+*.so
+
+# ========================================
+# Distribution / packaging
+# ========================================
+.Python
+env/
+envs/
+venv/
+ENV/
+ENVS/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+pip-wheel-metadata/
+*.whl
+
+# ========================================
+# Virtual Environments (Micromamba / Mamba)
+# ========================================
+.mamba/
+.micromamba/
+micromamba_env/
+conda-meta/
+
+# Optional lockfiles (ignore if you generate them dynamically)
+*.lock
+
+# ========================================
+# Environment files (optional)
+# ========================================
+# Uncomment to ignore if environment.yml is generated, not maintained
+# environment.yml
+# conda-environment.yml
+
+# ========================================
+# PyInstaller
+# ========================================
+*.manifest
+*.spec
+
+# ========================================
+# Secrets
+# ========================================
+.env
+.env.*
+.envs/
+secrets/
+*.secret
+auth/
+
+# ========================================
+# Installer logs
+# ========================================
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ========================================
+# Unit test / coverage reports
+# ========================================
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# ========================================
+# Jupyter Notebook
+# ========================================
+.ipynb_checkpoints
+
+# ========================================
+# IDEs and editors
+# ========================================
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ========================================
+# macOS / Linux / Windows system files
+# ========================================
+.DS_Store
+.Trashes
+ehthumbs.db
+Icon?
+Thumbs.db
+desktop.ini
